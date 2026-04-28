@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-a
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-a
+  template:
+    metadata:
+      labels:
+        app: service-a
+    spec:
+      containers:
+        - name: service-a
+          image: service-a:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: service-a
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://jaeger.observability:4318
+            - name: OTEL_TRACES_EXPORTER
+              value: otlp
+            - name: OTEL_METRICS_EXPORTER
+              value: none
+            - name: OTEL_LOGS_EXPORTER
+              value: none
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-a
+spec:
+  selector:
+    app: service-a
+  ports:
+    - port: 8080
+      targetPort: 8080

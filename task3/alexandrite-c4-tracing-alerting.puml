@@ -1,0 +1,60 @@
+@startuml
+!theme plain
+
+title Alexandrite - tracing with alerting
+
+skinparam componentStyle rectangle
+
+actor "Customer / Partner API" as user
+
+rectangle "Online Shop" as shop #LightBlue
+rectangle "CRM" as crm #LightBlue
+rectangle "MES" as mes #LightBlue
+queue "RabbitMQ" as rabbit #LightBlue
+database "Shop DB" as shopdb
+database "MES DB" as mesdb
+cloud "S3 Storage\n3D models" as s3
+
+rectangle "OpenTelemetry Collector" as otel #FFCCCC
+database "Tempo / Jaeger\nTrace Storage" as trace #FFCCCC
+rectangle "Grafana\nTrace UI" as grafana #FFCCCC
+
+rectangle "Order Flow Monitor" as flowmon #CCFFCC
+rectangle "Alertmanager" as alertmanager #CCFFCC
+actor "Support / DevOps" as support
+
+user --> shop : HTTP request\ntraceparent
+shop --> s3
+shop --> rabbit : order event\ntraceparent + correlationId
+rabbit --> crm
+crm --> rabbit : production event
+rabbit --> mes
+mes --> rabbit : status event
+rabbit --> crm
+
+shop --> shopdb
+crm --> shopdb
+mes --> mesdb
+
+shop --> otel : spans
+crm --> otel : spans
+mes --> otel : spans
+rabbit --> otel : queue spans / metrics
+
+otel --> trace : export traces
+grafana --> trace : query traces
+
+trace --> flowmon : order trace analysis
+flowmon --> alertmanager : alert if order stuck
+alertmanager --> support : notification
+
+note right of flowmon
+Green component.
+Checks business flow:
+- order stuck in status
+- price calculation too long
+- message in DLQ
+- MES status not delivered to CRM
+end note
+
+@enduml
