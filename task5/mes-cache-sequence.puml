@@ -1,15 +1,14 @@
-
-## PUML для диаграммы
-
-```plantuml
 @startuml
-title MES Cache-Aside: чтение списка заказов и изменение статуса
+title MES Write-Through: чтение списка заказов и изменение статуса через брокер
 
 actor Operator as operator
 participant "MES Frontend" as frontend
 participant "MES API" as api
 database "Redis Cache" as redis
 database "MES DB" as db
+queue "RabbitMQ" as rabbit
+participant "CRM API" as crm
+database "Shop DB" as shopdb
 
 == Чтение списка заказов ==
 
@@ -34,14 +33,24 @@ end
 
 operator -> frontend : Берёт заказ в работу
 frontend -> api : PATCH /orders/{orderId}/status
+
 api -> db : UPDATE order SET status = MANUFACTURING_STARTED
 db --> api : OK
 
-api -> redis : DELETE mes:orders:status:NEW:*
-api -> redis : DELETE mes:orders:status:MANUFACTURING_STARTED:*
-api -> redis : DELETE mes:orders:dashboard:summary
+api -> redis : UPDATE cached order/status/dashboard
+redis --> api : OK
+
+api -> rabbit : publish OrderStatusChanged
+rabbit --> api : accepted
 
 api --> frontend : Status changed
 frontend --> operator : Статус обновлён
+
+== Обработка события в CRM ==
+
+rabbit -> crm : consume OrderStatusChanged
+crm -> shopdb : UPDATE order status
+shopdb --> crm : OK
+crm --> rabbit : ACK
 
 @enduml

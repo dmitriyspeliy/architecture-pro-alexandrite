@@ -88,6 +88,27 @@
 **Количество заказов в очереди**
 - зачем: показывает задержки
 
+### Детализация API-метрик
+
+RPS:
+- shop_api_rps
+- crm_api_rps
+- mes_api_rps
+- b2b_api_rps
+- labels: service, endpoint, method, partnerId
+
+HTTP 500:
+- shop_api_http_500_total
+- crm_api_http_500_total
+- mes_api_http_500_total
+- labels: service, endpoint
+
+Latency:
+- shop_api_latency_p95
+- crm_api_latency_p95
+- mes_api_latency_p95
+- labels: service, endpoint
+
 ---
 
 ## 4. План действий
