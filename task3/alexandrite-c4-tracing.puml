@@ -1,0 +1,49 @@
+@startuml
+!theme plain
+
+title Alexandrite - tracing architecture
+
+skinparam componentStyle rectangle
+
+actor "Customer / Partner API" as user
+
+rectangle "Online Shop" as shop #LightBlue
+rectangle "CRM" as crm #LightBlue
+rectangle "MES" as mes #LightBlue
+queue "RabbitMQ" as rabbit #LightBlue
+database "Shop DB" as shopdb
+database "MES DB" as mesdb
+cloud "S3 Storage\n3D models" as s3
+
+rectangle "OpenTelemetry Collector" as otel #FFCCCC
+database "Tempo / Jaeger\nTrace Storage" as trace #FFCCCC
+rectangle "Grafana\nTrace UI" as grafana #FFCCCC
+
+user --> shop : HTTP request\ntraceparent
+shop --> s3 : upload/download 3D model
+shop --> rabbit : publish order event\ntraceparent + correlationId
+rabbit --> crm : consume order event
+crm --> rabbit : publish production event
+rabbit --> mes : consume production event
+mes --> rabbit : publish status event
+rabbit --> crm : consume status event
+
+shop --> shopdb
+crm --> shopdb
+mes --> mesdb
+
+shop --> otel : spans
+crm --> otel : spans
+mes --> otel : spans
+rabbit --> otel : queue spans / metrics
+
+otel --> trace : export traces
+grafana --> trace : query traces
+
+note right of otel
+New tracing component.
+Collects spans from Shop, CRM, MES
+and RabbitMQ integrations.
+end note
+
+@enduml

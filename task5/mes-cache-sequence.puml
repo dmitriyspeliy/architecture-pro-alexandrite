@@ -1,0 +1,56 @@
+@startuml
+title MES Write-Through: чтение списка заказов и изменение статуса через брокер
+
+actor Operator as operator
+participant "MES Frontend" as frontend
+participant "MES API" as api
+database "Redis Cache" as redis
+database "MES DB" as db
+queue "RabbitMQ" as rabbit
+participant "CRM API" as crm
+database "Shop DB" as shopdb
+
+== Чтение списка заказов ==
+
+operator -> frontend : Открывает дашборд
+frontend -> api : GET /orders?status=NEW&page=0
+api -> redis : GET mes:orders:status:NEW:page:0:size:20
+
+alt Cache hit
+    redis --> api : Cached orders
+    api --> frontend : Orders list
+    frontend --> operator : Показать список заказов
+else Cache miss
+    redis --> api : null
+    api -> db : SELECT orders WHERE status = NEW
+    db --> api : Orders list
+    api -> redis : SET key orders TTL 60 sec
+    api --> frontend : Orders list
+    frontend --> operator : Показать список заказов
+end
+
+== Изменение статуса заказа ==
+
+operator -> frontend : Берёт заказ в работу
+frontend -> api : PATCH /orders/{orderId}/status
+
+api -> db : UPDATE order SET status = MANUFACTURING_STARTED
+db --> api : OK
+
+api -> redis : UPDATE cached order/status/dashboard
+redis --> api : OK
+
+api -> rabbit : publish OrderStatusChanged
+rabbit --> api : accepted
+
+api --> frontend : Status changed
+frontend --> operator : Статус обновлён
+
+== Обработка события в CRM ==
+
+rabbit -> crm : consume OrderStatusChanged
+crm -> shopdb : UPDATE order status
+shopdb --> crm : OK
+crm --> rabbit : ACK
+
+@enduml
